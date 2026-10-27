@@ -773,9 +773,9 @@ class KnowledgeBase:
 
         return supporting_facts, applied_rules
 
+    
     def explain(self, goal: Predicate) -> Dict[str, Any]:
         """Explain a goal using matching facts and supporting rules."""
-        
         known_facts = self._derive_facts()
 
         matched_fact = None
@@ -788,16 +788,6 @@ class KnowledgeBase:
                 substitution = result
                 break
 
-        # A derived conclusion must have a valid supporting rule.
-        if matched_fact is not None and matched_fact not in self.facts:
-            supporting_facts, traced_rules = self._trace_support(
-                matched_fact, known_facts
-            )
-
-            if not traced_rules:
-                matched_fact = None
-                substitution = None
-        
         if matched_fact is None:
             return {
                 "goal": repr(goal),
@@ -807,16 +797,37 @@ class KnowledgeBase:
                 "applied_rules": [],
             }
 
+        # Handle facts explicitly stored in the knowledge base.
+        if matched_fact in self.facts:
+            return {
+                "goal": repr(goal),
+                "proved": True,
+                "matched_fact": repr(matched_fact),
+                "substitution": {
+                    str(key): repr(value)
+                    for key, value in (substitution or {}).items()
+                },
+                "explanation": (
+                    "The goal matches a fact explicitly stored "
+                    "in the knowledge base."
+                ),
+                "supporting_facts": [repr(matched_fact)],
+                "applied_rules": [],
+            }
 
-        if matched_fact is None:
-            
-            supporting_facts, traced_rules = self._trace_support(
-            matched_fact, known_facts
-        )
-        
+        # Trace a derived conclusion back to its supporting facts and rules.
         supporting_facts, traced_rules = self._trace_support(
             matched_fact, known_facts
         )
+
+        if not traced_rules:
+            return {
+                "goal": repr(goal),
+                "proved": False,
+                "explanation": "No valid supporting rule chain was found.",
+                "supporting_facts": [],
+                "applied_rules": [],
+            }
 
         return {
             "goal": repr(goal),
@@ -831,70 +842,6 @@ class KnowledgeBase:
             "applied_rules": traced_rules,
         }
 
-
-        # If the goal is directly present in the knowledge base,
-        # report that asserted fact.
-        if matched_fact in self.facts:
-            return {
-                "goal": repr(goal),
-                "proved": True,
-                "matched_fact": repr(matched_fact),
-                "explanation": "The goal matches a fact explicitly stored in the knowledge base.",
-                "supporting_facts": [repr(matched_fact)],
-                "applied_rules": [],
-            }
-
-        
-        
-        # Find rules whose heads match the derived conclusion.
-        applied_rules = []
-
-        for rule in self.rules:
-            result = unify(rule.head, matched_fact, {})
-
-            if result is None:
-                continue
-
-            conditions = [
-                apply_subst(result, condition)
-                for condition in rule.body
-            ]
-
-            satisfied_conditions = []
-
-            for condition in conditions:
-                matching_facts = [
-                    fact for fact in known_facts
-                    if unify(condition, fact, {}) is not None
-                ]
-
-                satisfied_conditions.append({
-                    "condition": repr(condition),
-                    "satisfied": bool(matching_facts),
-                    "matching_facts": [
-                        repr(fact) for fact in matching_facts
-                    ],
-                })
-
-            applied_rules.append({
-                "rule": repr(rule),
-                "comment": rule.comment,
-                "conditions": satisfied_conditions,
-            })
-
-
-        return {
-            "goal": repr(goal),
-            "proved": True,
-            "matched_fact": repr(matched_fact),
-            "substitution": {
-                str(key): repr(value)
-                for key, value in (substitution or {}).items()
-            },
-            "explanation": "The goal matches a derived conclusion.",
-            "supporting_facts": [],
-            "applied_rules": applied_rules,
-        }
 
 
     def __repr__(self) -> str:

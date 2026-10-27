@@ -1787,7 +1787,80 @@ class TestConsumerLawKnowledgeBase(unittest.TestCase):
             result["supporting_facts"],
         )
         self.assertEqual(len(result["applied_rules"]), 2)
+    
+    def test_explain_includes_multiple_rules_for_same_conclusion(self):
+        kb = KnowledgeBase()
+        x = Variable("x")
 
+        kb.add_fact(Predicate("ValidPurchase", [Constant("Ramesh")]))
+        kb.add_fact(Predicate("WarrantyRegistered", [Constant("Ramesh")]))
+
+        kb.add_rule(
+            Rule(
+                Predicate("EligibleConsumer", [x]),
+                [Predicate("ValidPurchase", [x])],
+                comment="Purchase record supports eligibility",
+            )
+        )
+
+        kb.add_rule(
+            Rule(
+                Predicate("EligibleConsumer", [x]),
+                [Predicate("WarrantyRegistered", [x])],
+                comment="Warranty registration supports eligibility",
+            )
+        )
+
+        result = kb.explain(
+            Predicate("EligibleConsumer", [Constant("Ramesh")])
+        )
+
+        self.assertTrue(result["proved"])
+        self.assertEqual(len(result["applied_rules"]), 2)
+
+        explained_rules = [
+            item["rule"] for item in result["applied_rules"]
+        ]
+        self.assertIn(
+            "EligibleConsumer(?x) :- ValidPurchase(?x).",
+            explained_rules,
+        )
+        self.assertIn(
+            "EligibleConsumer(?x) :- WarrantyRegistered(?x).",
+            explained_rules,
+        )
+
+        self.assertIn("ValidPurchase(Ramesh)", result["supporting_facts"])
+        self.assertIn(
+            "WarrantyRegistered(Ramesh)",
+            result["supporting_facts"],
+        )
+
+    
+    def test_explain_does_not_mix_facts_from_different_people(self):
+        kb = KnowledgeBase()
+        x = Variable("x")
+
+        kb.add_fact(Predicate("ValidPurchase", [Constant("Ramesh")]))
+        kb.add_fact(Predicate("WarrantyRegistered", [Constant("Priya")]))
+
+        kb.add_rule(
+            Rule(
+                Predicate("EligibleConsumer", [x]),
+                [
+                    Predicate("ValidPurchase", [x]),
+                    Predicate("WarrantyRegistered", [x]),
+                ],
+            )
+        )
+
+        result = kb.explain(
+            Predicate("EligibleConsumer", [Constant("Ramesh")])
+        )
+
+        self.assertFalse(result["proved"])
+        self.assertEqual(result["applied_rules"], [])
+        self.assertEqual(result["supporting_facts"], [])
 
 if __name__ == "__main__":
     unittest.main()
