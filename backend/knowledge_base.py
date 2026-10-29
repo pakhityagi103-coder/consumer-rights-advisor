@@ -66,6 +66,9 @@ PRED_COMMERCIAL_PURPOSE = "commercial_purpose"
 
 # Allegations (Subjective claims, Section 35)
 PRED_ALLEGES_DEFECT = "alleges_defect"
+PRED_ALLEGES_REFUND_DENIAL = "alleges_refund_denial"
+PRED_ALLEGES_DELIVERY_FAILURE = "alleges_delivery_failure"
+PRED_ALLEGES_WARRANTY_DENIAL = "alleges_warranty_denial"
 PRED_OPPOSITE_PARTY_DENIES = "opposite_party_denies"
 
 # Procedural / Evidence (Section 38)
@@ -82,6 +85,7 @@ PRED_COMMISSION_ORDERED_RELIEF = "commission_ordered_relief"
 PRED_IS_CONSUMER = "is_consumer"
 PRED_MAINTAINABLE_COMPLAINT = "maintainable_complaint"
 PRED_ELIGIBLE_FOR_RELIEF_CONSIDERATION = "eligible_for_relief_consideration"
+PRED_EXCLUDED_COMMERCIAL = "excluded_commercial_purchase"
 
 
 # ============================================================================
@@ -161,6 +165,77 @@ def build_educational_rules() -> List[Rule]:
         )
     )
     rules.append(r3)
+
+    # -------------------------------------------------------------------------
+    # Rule 4: Maintainability for Refund Refusal / Delay (Sec 2(47), CPA 2019)
+    # Refusing or delaying refund within promised or statutory timeframe.
+    # -------------------------------------------------------------------------
+    r4 = Rule(
+        head=Predicate(PRED_MAINTAINABLE_COMPLAINT, [c, s, g]),
+        body=[
+            Predicate(PRED_IS_CONSUMER, [c, g]),
+            Predicate(PRED_ALLEGES_REFUND_DENIAL, [c, g, d]),
+            Predicate(PRED_PURCHASED, [c, g, s]),
+        ],
+        comment=(
+            "Educational Rule (Sec 2(47)): Unfair trade practice complaint for refund denial "
+            "is maintainable for inquiry when filed by a qualifying consumer."
+        )
+    )
+    rules.append(r4)
+
+    # -------------------------------------------------------------------------
+    # Rule 5: Maintainability for Delivery Failure (Sec 2(11), CPA 2019)
+    # Non-delivery or severe delay after accepting purchase consideration.
+    # -------------------------------------------------------------------------
+    r5 = Rule(
+        head=Predicate(PRED_MAINTAINABLE_COMPLAINT, [c, s, g]),
+        body=[
+            Predicate(PRED_IS_CONSUMER, [c, g]),
+            Predicate(PRED_ALLEGES_DELIVERY_FAILURE, [c, g, d]),
+            Predicate(PRED_PURCHASED, [c, g, s]),
+        ],
+        comment=(
+            "Educational Rule (Sec 2(11)): Deficiency in service complaint for delivery failure "
+            "is maintainable for inquiry when filed by a qualifying consumer."
+        )
+    )
+    rules.append(r5)
+
+    # -------------------------------------------------------------------------
+    # Rule 6: Maintainability for Warranty Denial (Sec 2(11) & Sec 38, CPA 2019)
+    # Arbitrary warranty refusal or unsubstantiated customer blame.
+    # -------------------------------------------------------------------------
+    r6 = Rule(
+        head=Predicate(PRED_MAINTAINABLE_COMPLAINT, [c, s, g]),
+        body=[
+            Predicate(PRED_IS_CONSUMER, [c, g]),
+            Predicate(PRED_ALLEGES_WARRANTY_DENIAL, [c, g, d]),
+            Predicate(PRED_PURCHASED, [c, g, s]),
+        ],
+        comment=(
+            "Educational Rule (Sec 2(11) & Sec 38): Warranty dispute complaint is maintainable "
+            "for inquiry. The seller bears burden of substantiating customer misuse."
+        )
+    )
+    rules.append(r6)
+
+    # -------------------------------------------------------------------------
+    # Rule 7: Commercial Purpose Exclusion (Sec 2(7), CPA 2019)
+    # Excludes goods acquired for commercial resale or business profit.
+    # -------------------------------------------------------------------------
+    r7 = Rule(
+        head=Predicate(PRED_EXCLUDED_COMMERCIAL, [c, g]),
+        body=[
+            Predicate(PRED_PURCHASED, [c, g, s]),
+            Predicate(PRED_COMMERCIAL_PURPOSE, [c, g]),
+        ],
+        comment=(
+            "Educational Rule (Sec 2(7)): Purchases for commercial purpose are statutorily "
+            "excluded from consumer commission jurisdiction (unless self-employment exception)."
+        )
+    )
+    rules.append(r7)
 
     return rules
 

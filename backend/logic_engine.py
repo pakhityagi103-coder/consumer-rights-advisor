@@ -490,7 +490,7 @@ class KnowledgeBase:
 
     def add_fact(self, fact: Predicate) -> None:
         """Adds a fact to the Knowledge Base (avoids duplicates)."""
-        if not isinstance(fact, Predicate):
+        if not isinstance(fact, Predicate) and getattr(fact, "__class__", None).__name__ != "Predicate":
             raise TypeError("Fact must be a Predicate instance.")
         if fact not in self.facts:
             self.facts.append(fact)
@@ -498,6 +498,8 @@ class KnowledgeBase:
     
     def add_rule(self, rule: Rule) -> None:
         """Add a rule if it is not already in the knowledge base."""
+        if not isinstance(rule, Rule) and getattr(rule, "__class__", None).__name__ != "Rule":
+            raise TypeError("Rule must be a Rule instance.")
         if rule not in self.rules:
             self.rules.append(rule)
 

@@ -1861,6 +1861,185 @@ class TestConsumerLawKnowledgeBase(unittest.TestCase):
         self.assertFalse(result["proved"])
         self.assertEqual(result["applied_rules"], [])
         self.assertEqual(result["supporting_facts"], [])
+        
+    def test_explain_uses_consistent_bindings_across_conditions(self):
+        kb = KnowledgeBase()
+        x = Variable("x")
+        y = Variable("y")
+
+        kb.add_fact(
+            Predicate("Owns", [Constant("Ramesh"), Constant("PhoneA")])
+        )
+        kb.add_fact(
+            Predicate("Registered", [Constant("Priya"), Constant("PhoneA")])
+        )
+
+        kb.add_rule(
+            Rule(
+                Predicate("Eligible", [x]),
+                [
+                    Predicate("Owns", [x, y]),
+                    Predicate("Registered", [x, y]),
+                ],
+            )
+        )
+
+        result = kb.explain(
+            Predicate("Eligible", [Constant("Ramesh")])
+        )
+
+        self.assertFalse(result["proved"])
+        self.assertEqual(result["applied_rules"], [])
+        self.assertEqual(result["supporting_facts"], [])
+
+
+class TestResolveApiEndpoint(unittest.TestCase):
+    """Integration tests for the Flask POST /api/resolve endpoint."""
+
+    def setUp(self):
+        from backend.app import app
+        self.client = app.test_client()
+
+    def test_resolve_endpoint_provable_rule_derived_goal(self):
+        """Provable goal derived via rule: NeedsReview(Ramesh, Smartphone_Model_Z)."""
+        response = self.client.post(
+            "/api/resolve",
+            json={
+                "predicate": "NeedsReview",
+                "arguments": ["Ramesh", "Smartphone_Model_Z"],
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+        data = response.get_json()
+        self.assertTrue(data["proved"])
+        self.assertEqual(data["predicate"], "NeedsReview")
+        self.assertEqual(data["arguments"], ["Ramesh", "Smartphone_Model_Z"])
+        self.assertEqual(data["method"], "resolution_by_contradiction")
+        self.assertIn("Contradiction derived", data["explanation"])
+
+    def test_resolve_endpoint_provable_chained_rule_goal(self):
+        """Provable goal derived via 2-rule chain: ConsumerVerified(Ramesh)."""
+        response = self.client.post(
+            "/api/resolve",
+            json={
+                "predicate": "ConsumerVerified",
+                "arguments": ["Ramesh"],
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+        data = response.get_json()
+        self.assertTrue(data["proved"])
+        self.assertEqual(data["predicate"], "ConsumerVerified")
+        self.assertEqual(data["arguments"], ["Ramesh"])
+
+    def test_resolve_endpoint_unprovable_goal(self):
+        """Unprovable goal: ValidPurchase(Vikram) is not in the knowledge base."""
+        response = self.client.post(
+            "/api/resolve",
+            json={
+                "predicate": "ValidPurchase",
+                "arguments": ["Vikram"],
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+        data = response.get_json()
+        self.assertFalse(data["proved"])
+        self.assertEqual(data["predicate"], "ValidPurchase")
+        self.assertEqual(data["arguments"], ["Vikram"])
+        self.assertEqual(data["method"], "resolution_by_contradiction")
+        self.assertIn("without deriving a contradiction", data["explanation"])
+
+    def test_resolve_endpoint_validation_errors(self):
+        """Verify 400 error handling on invalid requests."""
+        # Non-JSON payload
+        res1 = self.client.post("/api/resolve", data="not json")
+        self.assertEqual(res1.status_code, 400)
+
+        # Missing predicate
+        res2 = self.client.post(
+            "/api/resolve",
+            json={"arguments": ["Ramesh"]},
+        )
+        self.assertEqual(res2.status_code, 400)
+
+        # Empty predicate string
+        res3 = self.client.post(
+            "/api/resolve",
+            json={"predicate": "   ", "arguments": ["Ramesh"]},
+        )
+        self.assertEqual(res3.status_code, 400)
+
+        # Missing arguments list
+        res4 = self.client.post(
+            "/api/resolve",
+            json={"predicate": "ValidPurchase"},
+        )
+        self.assertEqual(res4.status_code, 400)
+
+        # Empty arguments list
+        res5 = self.client.post(
+            "/api/resolve",
+            json={"predicate": "ValidPurchase", "arguments": []},
+        )
+        self.assertEqual(res5.status_code, 400)
+
+    def test_kb_and_cases_endpoints(self):
+        """Verify GET /api/kb and GET /api/cases return structured data."""
+        res_kb = self.client.get("/api/kb")
+        self.assertEqual(res_kb.status_code, 200)
+        kb_data = res_kb.get_json()
+        self.assertIn("facts", kb_data)
+        self.assertIn("rules", kb_data)
+        self.assertGreater(kb_data["facts_count"], 0)
+
+        res_cases = self.client.get("/api/cases")
+        self.assertEqual(res_cases.status_code, 200)
+        cases_data = res_cases.get_json()
+        self.assertIn("cases", cases_data)
+        self.assertEqual(len(cases_data["cases"]), 4)
+
+    def test_advisory_endpoint_defective_product(self):
+        """Verify POST /api/advisory returns consumer-first guidance with logic proof."""
+        payload = {
+            "category": "defective_product",
+            "description": "Phone screen flickers and battery heats up rapidly",
+            "has_invoice": True,
+            "seller_notified": True,
+            "commercial_purpose": False,
+            "consumer_name": "Ramesh",
+            "goods_name": "Smartphone_Model_Z",
+            "seller_name": "TechMart_India",
+        }
+        res = self.client.post("/api/advisory", json=payload)
+        self.assertEqual(res.status_code, 200)
+        data = res.get_json()
+        self.assertEqual(data["category"], "defective_product")
+        self.assertIn("situation", data)
+        self.assertIn("what_you_can_do", data)
+        self.assertIn("next_steps", data)
+        self.assertIn("keep_documents", data)
+        self.assertIn("official_channels", data)
+        self.assertIn("logic_proof", data)
+        self.assertTrue(data["logic_proof"]["proved"])
+        self.assertIn("limitations", data)
+
+    def test_advisory_endpoint_commercial_exclusion(self):
+        """Verify POST /api/advisory properly flags Section 2(7) commercial exclusion."""
+        payload = {
+            "category": "defective_product",
+            "description": "Brake wear on delivery vans",
+            "has_invoice": True,
+            "commercial_purpose": True,
+            "consumer_name": "Apex_Logistics",
+            "goods_name": "Delivery_Vans",
+            "seller_name": "SpeedMotors",
+        }
+        res = self.client.post("/api/advisory", json=payload)
+        self.assertEqual(res.status_code, 200)
+        data = res.get_json()
+        self.assertTrue(data["logic_proof"]["commercial_excluded"])
+        self.assertIn("excluded", data["situation"].lower())
+
 
 if __name__ == "__main__":
     unittest.main()
