@@ -24,7 +24,7 @@ except ImportError:
     sys.modules["backend.knowledge_base"] = knowledge_base
 if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
-
+from flask_cors import CORS
 from flask import Flask, jsonify, request
 
 try:
@@ -65,7 +65,14 @@ except ImportError:
     )
 
 app = Flask(__name__)
-
+CORS(
+    app,
+    resources={
+        r"/*": {
+            "origins": ["https://consumer-rights-advisor.vercel.app"]
+        }
+    }
+)
 # Create one knowledge base for the application.
 kb = KnowledgeBase()
 kb.add_fact(
