@@ -26,6 +26,7 @@ if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 from flask_cors import CORS
 from flask import Flask, jsonify, request
+from flask_cors import CORS
 
 try:
     from backend.logic_engine import Constant, KnowledgeBase, Predicate, Rule, Variable
