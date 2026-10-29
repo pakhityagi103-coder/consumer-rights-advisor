@@ -24,7 +24,7 @@ except ImportError:
     sys.modules["backend.knowledge_base"] = knowledge_base
 if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
-from flask_cors import CORS
+
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 
@@ -65,14 +65,17 @@ except ImportError:
         PRED_EXCLUDED_COMMERCIAL,
     )
 
+
+from flask_cors import CORS
+
 app = Flask(__name__)
+
 CORS(
     app,
-    resources={
-        r"/*": {
-            "origins": ["https://consumer-rights-advisor.vercel.app"]
-        }
-    }
+    resources={r"/*": {"origins": [
+        "https://consumer-rights-advisor.vercel.app",
+        "https://consumer-rights-advisor-be28gvkyz-pakhityagi103-9892s-projects.vercel.app"
+    ]}}
 )
 # Create one knowledge base for the application.
 kb = KnowledgeBase()
